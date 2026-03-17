@@ -1,0 +1,134 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📊 Gestión de Presupuestos - Brillo Astur</h2>
+        <a href="{{ url_for('logout') }}" class="btn btn-outline-danger btn-sm">Cerrar Sesión</a>
+    </div>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <div class="table-responsive card shadow p-3">
+        <table class="table table-hover align-middle">
+            <thead class="table-dark">
+                <tr>
+                    <th>Fecha</th>
+                    <th>Cliente (Ver detalhe)</th>
+                    <th>Teléfono</th>
+                    <th>Localidad</th>
+                    <th>Servicio</th>
+                    <th>Total</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in presupuestos %}
+                <tr>
+                    <td>{{ p.fecha_creacion.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>
+                        <a href="#" class="fw-bold text-primary" data-bs-toggle="modal" data-bs-target="#modalPresupuesto{{ p.id }}">
+                            {{ p.nombre_cliente }}
+                        </a>
+                    </td>
+                    <td>
+                        <a href="https://wa.me/34{{ p.telefono }}" target="_blank" class="text-decoration-none">
+                            🟢 {{ p.telefono }}
+                        </a>
+                    </td>
+                    <td>{{ p.localidad }}</td>
+                    <td>{{ p.servicio_nombre }}</td>
+                    <td>{{ p.total_presupuestado }}€</td>
+                    <td>
+                        <span class="badge {% if p.estatus == 'pendiente' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                            {{ p.estatus | capitalize }}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            {% if p.estatus == 'pendiente' %}
+                                <a href="{{ url_for('actualizar_estatus', id=p.id) }}" class="btn btn-sm btn-primary">
+                                    Marcar Contactado
+                                </a>
+                            {% else %}
+                                <span class="text-muted small italic my-auto">Gestionado</span>
+                            {% endif %}
+                            
+                            <a href="{{ url_for('eliminar_presupuesto', id=p.id) }}" 
+                               class="btn btn-sm btn-outline-danger" 
+                               onclick="return confirm('¿Estás seguro de que deseas eliminar este presupuesto? Esta acción no se puede deshacer.')">
+                               🗑️ Eliminar
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+
+                <div class="modal fade" id="modalPresupuesto{{ p.id }}" tabindex="-1" aria-labelledby="modalLabel{{ p.id }}" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header bg-light">
+                                <h5 class="modal-title" id="modalLabel{{ p.id }}">📋 Detalle del Presupuesto #{{ p.id }}</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body p-4" id="printArea{{ p.id }}">
+                                <div class="text-center mb-4">
+                                    <h4>✨ BRILLO ASTUR</h4>
+                                    <p class="text-muted small">Presupuesto de Limpieza Profissional</p>
+                                </div>
+                                <div class="row">
+                                    <div class="col-6">
+                                        <p><strong>Cliente:</strong> {{ p.nombre_cliente }}</p>
+                                        <p><strong>Teléfono:</strong> {{ p.telefono }}</p>
+                                        <p><strong>Email:</strong> {{ p.email }}</p>
+                                    </div>
+                                    <div class="col-6 text-end">
+                                        <p><strong>Fecha:</strong> {{ p.fecha_creacion.strftime('%d/%m/%Y') }}</p>
+                                        <p><strong>Localidad:</strong> {{ p.localidad }}</p>
+                                    </div>
+                                </div>
+                                <hr>
+                                <div class="bg-light p-3 rounded">
+                                    <p><strong>Servicio solicitado:</strong> {{ p.servicio_nombre }}</p>
+                                    <p><strong>Horas estimadas:</strong> {{ p.horas_estimadas }}h</p>
+                                    <h4 class="text-primary mt-3">TOTAL: {{ p.total_presupuestado }}€</h4>
+                                </div>
+                                <div class="mt-4 small text-muted">
+                                    <p>* Este presupuesto es informativo y está sujeto a revisión técnica.</p>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                                <button type="button" class="btn btn-success" onclick="imprimirDiv('printArea{{ p.id }}')">
+                                    🖨️ Imprimir / Guardar PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+function imprimirDiv(divId) {
+    var conteudo = document.getElementById(divId).innerHTML;
+    var painelOriginal = document.body.innerHTML;
+
+    document.body.innerHTML = "<html><head><title>Imprimir Presupuesto</title></head><body>" + conteudo + "</body></html>";
+    window.print();
+    document.body.innerHTML = painelOriginal;
+    window.location.reload(); 
+}
+</script>
+{% endblock %}

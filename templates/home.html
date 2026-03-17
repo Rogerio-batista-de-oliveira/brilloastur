@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="position-relative overflow-hidden p-3 p-md-5 text-center bg-image shadow-sm d-flex align-items-center" 
+     style="background: linear-gradient(rgba(0, 51, 102, 0.75), rgba(0, 51, 102, 0.75)), 
+            url('https://images.unsplash.com/photo-1581578731548-c64695cc6954?auto=format&fit=crop&w=1350&q=80'); 
+            min-height: 70vh; background-size: cover; background-position: center; color: white;">
+    <div class="col-md-10 col-lg-8 mx-auto my-5">
+        <h1 class="display-3 display-md-2 fw-bold mb-3">Brillo Astur</h1>
+        <h2 class="h3 h2-md fw-light mb-4">Calidad Asturiana en Limpieza Profesional</h2>
+        <p class="lead fw-normal mb-5 px-2">Desde Mieres para toda Asturias. Especialistas en limpieza de fin de obra, mantenimiento de hogares y oficinas.</p>
+        <div class="d-grid gap-3 d-sm-flex justify-content-sm-center px-3">
+            <a class="btn btn-warning btn-lg px-md-5 py-3 fw-bold shadow" href="/calculadora">📊 CALCULAR PRESUPUESTO</a>
+            <a class="btn btn-outline-light btn-lg px-md-4 d-flex align-items-center justify-content-center" href="https://wa.me/34674261332">
+                <i class="bi bi-whatsapp me-2"></i> Contactar
+            </a>
+        </div>
+    </div>
+</div>
+
+<div class="container my-5 py-3 py-md-5">
+    <div class="row mb-4 text-center">
+        <div class="col-12">
+            <h2 class="fw-bold text-dark display-6">Nuestros Servicios</h2>
+            <p class="text-muted px-4">Soluciones técnicas adaptadas a cada necesidad en el Principado.</p>
+        </div>
+    </div>
+
+    <div id="serviceCarousel" class="carousel slide shadow-lg rounded-4 overflow-hidden border mb-5" data-bs-ride="carousel">
+        <div class="carousel-indicators">
+            <button type="button" data-bs-target="#serviceCarousel" data-bs-slide-to="0" class="active"></button>
+            <button type="button" data-bs-target="#serviceCarousel" data-bs-slide-to="1"></button>
+        </div>
+        
+        <div class="carousel-inner">
+            <div class="carousel-item active" data-bs-interval="5000">
+                <a href="/servicio/pos-obra">
+                    <img src="https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&w=1200&q=80" 
+                         class="d-block w-100" style="height: 350px; height: md-500px; object-fit: cover; filter: brightness(0.6);">
+                    <div class="carousel-caption d-block p-3 p-md-4 rounded-4" style="background: rgba(0, 51, 102, 0.85); bottom: 5%; left: 5%; right: 5%;">
+                        <h3 class="fw-bold h4 h3-md">Limpieza Pos-Obra</h3>
+                        <p class="d-none d-md-block">Eliminamos el polvo fino, restos de pintura y cemento con maquinaria industrial.</p>
+                        <div class="btn btn-warning btn-sm fw-bold mt-2">Ver Detalles</div>
+                    </div>
+                </a>
+            </div>
+            
+            <div class="carousel-item" data-bs-interval="5000">
+                <a href="/servicio/hogar">
+                    <img src="https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&w=1200&q=80" 
+                         class="d-block w-100" style="height: 350px; height: md-500px; object-fit: cover; filter: brightness(0.6);">
+                    <div class="carousel-caption d-block p-3 p-md-4 rounded-4" style="background: rgba(0, 51, 102, 0.85); bottom: 5%; left: 5%; right: 5%;">
+                        <h3 class="fw-bold h4 h3-md">Hogar y Mantenimiento</h3>
+                        <p class="d-none d-md-block">Devolvemos el brillo a tu casa con servicios recurrentes o limpiezas a fondo.</p>
+                        <div class="btn btn-warning btn-sm fw-bold mt-2">Más información</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <button class="carousel-control-prev d-none d-md-flex" type="button" data-bs-target="#serviceCarousel" data-bs-slide="prev">
+            <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        </button>
+        <button class="carousel-control-next d-none d-md-flex" type="button" data-bs-target="#serviceCarousel" data-bs-slide="next">
+            <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        </button>
+    </div>
+
+    <div class="row justify-content-center py-4">
+        <div class="col-12 col-lg-10 text-center">
+            <h2 class="fw-bold text-dark mb-4 h3">Brillo Astur en Acción 🎥</h2>
+            <div class="ratio ratio-16x9 shadow-lg rounded-4 overflow-hidden border">
+                <video controls muted loop preload="metadata">
+                    <source src="{{ url_for('static', filename='video/BrilloAstur.mp4') }}" type="video/mp4">
+                    Tu navegador no soporta el vídeo.
+                </video>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="bg-white py-5 border-top border-bottom">
+    <div class="container">
+        <div class="row g-4 text-center">
+            <div class="col-12 col-md-4">
+                <div class="p-3">
+                    <div class="display-5 mb-3">🧼</div>
+                    <h4 class="fw-bold">Productos Pro</h4>
+                    <p class="text-muted small px-3">Químicos industriales que no dañan tus superficies pero eliminan la suciedad más rebelde.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-4 border-md-start border-md-end">
+                <div class="p-3">
+                    <div class="display-5 mb-3">⚙️</div>
+                    <h4 class="fw-bold">Maquinaria Propia</h4>
+                    <p class="text-muted small px-3">Rotativas y aspiradoras industriales para resultados que una limpieza manual no alcanza.</p>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="p-3">
+                    <div class="display-5 mb-3">📍</div>
+                    <h4 class="fw-bold">Toda Asturias</h4>
+                    <p class="text-muted small px-3">Desde nuestra sede en Mieres nos desplazamos a cualquier punto de la región.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

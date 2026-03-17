@@ -1,0 +1,112 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="container py-4 py-lg-5">
+    <div class="row align-items-center g-4 g-lg-5 mb-5">
+        <div class="col-lg-6 text-center">
+            <img src="{{ info.imagen }}" class="img-fluid rounded-4 shadow-lg mb-3 mb-lg-0" alt="{{ info.titulo }}" style="max-height: 400px; width: 100%; object-fit: cover;">
+        </div>
+        
+        <div class="col-lg-6 text-center text-lg-start">
+            <nav aria-label="breadcrumb" class="d-none d-md-inline-block"> <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Inicio</a></li>
+                    <li class="breadcrumb-item active">{{ info.titulo }}</li>
+                </ol>
+            </nav>
+            
+            <h1 class="display-5 fw-bold text-dark mt-2">{{ info.titulo }}</h1>
+            <p class="lead text-muted mb-4 px-2 px-lg-0">{{ info.descripcion }}</p>
+            
+            <div class="card border-0 bg-light p-3 p-md-4 rounded-4 mb-4 shadow-sm text-start">
+                <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-stars me-2"></i>¿Qué incluye?</h5>
+                <ul class="list-unstyled mb-0">
+                    {% for p in info.puntos %}
+                    <li class="mb-2 d-flex align-items-start">
+                        <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i> 
+                        <span>{{ p }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+            <div class="d-grid gap-3 d-md-flex justify-content-lg-start">
+                <a href="/calculadora" class="btn btn-warning btn-lg px-4 fw-bold shadow-sm py-3">
+                    📊 CALCULAR PRESUPUESTO
+                </a>
+                <a href="https://wa.me/34674261332?text=Hola,%20me%20gustaría%20más%20información%20sobre%20{{ info.titulo }}" 
+                   class="btn btn-success btn-lg px-4 d-flex align-items-center justify-content-center py-3">
+                    <i class="bi bi-whatsapp me-2"></i> WHATSAPP
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <hr class="my-5 opacity-25">
+
+    <div class="row justify-content-center">
+        <div class="col-12 col-lg-10">
+            {% if "Obra" in info.titulo %}
+            <div class="text-center mb-4 px-2">
+                <h2 class="fw-bold h1">Tú estrenas la reforma, nosotros eliminamos la obra</h2>
+            </div>
+            <div class="p-3 p-md-5 bg-white rounded-4 shadow-sm border">
+                <p class="fs-5 text-muted mb-4">La última fase de tu proyecto es nuestra especialidad.</p>
+                <div class="lh-lg">
+                    <p>Sabemos que después de meses de ruido, escombros y polvo, lo único que quieres es disfrutar de tu nuevo espacio. La suciedad de obra es un polvo fino que requiere un tratamiento técnico.</p>
+                    <p class="fw-bold text-dark border-start border-4 border-primary ps-3 my-4">En Brillo Astur, convertimos una zona en obras en un hogar listo para vivir.</p>
+                </div>
+                
+                <h4 class="fw-bold mt-5 mb-4 text-primary">¿Cómo lo hacemos?</h4>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="h-100 p-3 bg-light rounded-3">
+                            <p><strong><i class="bi bi-tools me-2"></i>Desincrustado Técnico:</strong> Eliminamos restos de obra en suelos sin dañar los materiales.</p>
+                            <p class="mb-0"><strong><i class="bi bi-window me-2"></i>Cristales y Marcos:</strong> Limpieza profunda eliminando pegatinas y sellantes.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="h-100 p-3 bg-light rounded-3">
+                            <p><strong><i class="bi bi-wind me-2"></i>Polvo en Suspensión:</strong> Aspirado industrial para garantizar un aire limpio.</p>
+                            <p class="mb-0"><strong><i class="bi bi-gear-wide-connected me-2"></i>Maquinaria Profesional:</strong> Rotativas y aspiradoras de alta potencia.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-info border-0 mt-5 text-center fw-bold py-3">
+                    ¡No pierdas días limpiando! Pide tu presupuesto ahora.
+                </div>
+            </div>
+
+            {% else %}
+            <div class="text-center mb-4 px-2">
+                <h2 class="fw-bold h1">Nos encargamos del brillo de tu hogar</h2>
+            </div>
+            <div class="p-3 p-md-5 bg-white rounded-4 shadow-sm border">
+                <p class="fs-5 text-muted">Tu casa es tu refugio, no tu segunda jornada de trabajo.</p>
+                <div class="lh-lg">
+                    <p>En Brillo Astur, entendemos que tu tiempo es el activo más valioso. Te ofrecemos un servicio de confianza, puntualidad y detalle en Asturias.</p>
+                </div>
+                
+                <h4 class="fw-bold mt-5 mb-4 text-primary">¿Por qué elegirnos?</h4>
+                <div class="row g-4">
+                    <div class="col-md-6">
+                        <div class="p-3">
+                            <p><strong><i class="bi bi-house-heart me-2 text-danger"></i>Confianza Asturiana:</strong> Somos de Mieres, serios y cercanos.</p>
+                            <p><strong><i class="bi bi-shield-check me-2 text-success"></i>Desinfección:</strong> Atención crítica en baños y cocinas.</p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3">
+                            <p><strong><i class="bi bi-droplet me-2 text-info"></i>Productos Top:</strong> Cuidamos tus muebles y superficies.</p>
+                            <p><strong><i class="bi bi-person-check me-2 text-primary"></i>Personal:</strong> Equipo formado, discreto y meticuloso.</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="alert alert-success border-0 mt-5 text-center fw-bold py-3">
+                    Imagina llegar a casa y que todo esté perfecto.
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

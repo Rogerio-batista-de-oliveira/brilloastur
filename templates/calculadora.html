@@ -1,0 +1,157 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<style>
+    .loader-spinner { width: 1.2rem; height: 1.2rem; display: none; }
+    .is-invalid { border-color: #dc3545 !important; }
+    .invalid-feedback { display: none; color: #dc3545; font-size: 0.8rem; }
+    .presupuesto-texto { white-space: pre-wrap; font-family: 'Courier New', Courier, monospace; }
+</style>
+
+<div class="modal fade" id="modalPresupuesto" tabindex="-1" aria-labelledby="modalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg rounded-4">
+            <div class="modal-header text-white border-0" style="background-color: #003366;">
+                <h5 class="modal-title fw-bold" id="modalLabel">✨ Presupuesto Listo</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4 text-center">
+                <p class="text-muted small mb-3">Aquí tienes el resumen de tu solicitud:</p>
+                <div class="presupuesto-texto border p-3 rounded bg-light text-start">
+                    {{ presupuesto }}
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar y Ver Detalles</button>
+                <button onclick="window.print()" class="btn btn-primary px-4">🖨️ Imprimir</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container py-4 py-md-5"> 
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-10 col-lg-8"> 
+            <div class="card border-0 shadow-lg rounded-4 overflow-hidden">
+                <div class="p-4 text-center text-white" style="background-color: #003366;">
+                    <h2 class="fw-bold mb-1">🧼 Calculadora Brillo Astur</h2>
+                    <p class="small mb-0 opacity-75">Dirección completa y presupuesto al instante</p>
+                </div>
+
+                <div class="card-body p-3 p-md-5"> 
+                    <form method="POST" id="presupuestoForm">
+                        <div class="row g-3 g-md-4"> 
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Nombre del Cliente</label>
+                                <input type="text" name="cliente" class="form-control form-control-lg" required>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Teléfono (España)</label>
+                                <input type="tel" id="telefono" name="telefono" class="form-control form-control-lg" 
+                                       placeholder="600000000" pattern="[679][0-9]{8}" required>
+                            </div>
+
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Email</label>
+                                <input type="email" name="email" class="form-control form-control-lg" required>
+                            </div>
+
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Código Postal</label>
+                                <div class="input-group">
+                                    <input type="text" id="cp" name="cp" class="form-control form-control-lg" maxlength="5" required>
+                                    <span class="input-group-text d-none" id="cp-loader">
+                                        <div class="spinner-border spinner-border-sm text-primary"></div>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="col-12 col-md-8">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Calle / Vía</label>
+                                <input type="text" id="calle" name="calle" class="form-control form-control-lg" required>
+                            </div>
+
+                            <div class="col-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Nº</label>
+                                <input type="text" name="numero" class="form-control form-control-lg">
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Piso</label>
+                                <input type="text" name="piso" class="form-control form-control-lg">
+                            </div>
+
+                            <div class="col-12">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Ciudad y Provincia</label>
+                                <input type="text" id="localidad_provincia" name="direccion" class="form-control form-control-lg bg-light" readonly>
+                            </div>
+
+                            <div class="col-12 col-md-8">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Servicio</label>
+                                <select name="servicio" class="form-select form-select-lg">
+                                    <option value="1">Mantenimiento Hogar (19€/h)</option>
+                                    <option value="4">Fin de Obra (27€/h)</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label fw-bold small text-uppercase text-muted">Horas</label>
+                                <input type="number" name="horas" class="form-control form-control-lg" value="1" min="1">
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-lg w-100 mt-4 fw-bold shadow py-3">CALCULAR PRESUPUESTO</button>
+                    </form>
+
+                    {% if presupuesto %}
+                    <div id="resultadoFixo" class="mt-5 p-4 rounded-4 border-start border-4 border-primary bg-light">
+                        <h4 class="text-primary fw-bold mb-3">📋 Resumen Guardado</h4>
+                        <div class="presupuesto-texto border p-3 rounded bg-white">
+                            {{ presupuesto }}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Lógica para abrir o Modal automaticamente se houver orçamento
+        {% if presupuesto %}
+            var myModal = new bootstrap.Modal(document.getElementById('modalPresupuesto'));
+            myModal.show();
+            // Rola suavemente até o resultado fixo para quando o modal fechar
+            document.getElementById('resultadoFixo').scrollIntoView({ behavior: 'smooth' });
+        {% endif %}
+
+        // Busca de CEP (Seu código original mantido)
+        const cpInput = document.getElementById('cp');
+        const calleInput = document.getElementById('calle');
+        const locProvInput = document.getElementById('localidad_provincia');
+        const loader = document.getElementById('cp-loader');
+
+        cpInput.addEventListener('input', function(e) {
+            let cp = e.target.value.replace(/\D/g, '');
+            e.target.value = cp;
+            if (cp.length === 5) {
+                loader.classList.remove('d-none');
+                fetch(`https://nominatim.openstreetmap.org/search?postalcode=${cp}&country=spain&format=json&addressdetails=1`)
+                    .then(res => res.json())
+                    .then(data => {
+                        loader.classList.add('d-none');
+                        if (data.length > 0) {
+                            const addr = data[0].address;
+                            locProvInput.value = `${addr.city || addr.town || addr.village || ""}, ${addr.state || ""}`;
+                            if (addr.road) calleInput.value = addr.road;
+                            cpInput.classList.remove('is-invalid');
+                        } else {
+                            cpInput.classList.add('is-invalid');
+                        }
+                    })
+                    .catch(() => loader.classList.add('d-none'));
+            }
+        });
+    });
+</script>
+{% endblock %}

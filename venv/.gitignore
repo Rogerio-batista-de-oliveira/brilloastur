@@ -1,0 +1,20 @@
+# Entorno virtual (muy importante ignorar esto)
+venv/
+env/
+ENV/
+
+# Archivos temporales de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Variables de entorno (seguridad)
+.env
+
+# Carpetas de configuración de editores
+.vscode/
+.idea/
+
+# Archivos sueltos de sistema
+.DS_Store
+Thumbs.db
