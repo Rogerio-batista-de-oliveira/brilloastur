@@ -7,7 +7,6 @@ import os
 app = Flask(__name__)
 
 # --- 1. CONFIGURACIÓN DE SEGURIDAD ---
-# Usa as variáveis do Render ou valores padrão para teste local
 app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2026') 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
@@ -30,7 +29,6 @@ def get_db_connection():
         password=os.environ.get('DB_PASS'),
         database=os.environ.get('DB_NAME'),
         port=int(os.environ.get('DB_PORT', 4000)),
-        # Parâmetros vitais para a nuvem
         ssl_verify_cert=True,
         ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
@@ -44,11 +42,33 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- 5. RUTAS PÚBLICAS (Home e Calculadora) ---
+# --- 5. RUTAS PÚBLICAS ---
 
 @app.route('/')
 def home():
     return render_template('home.html')
+
+# NOVA ROTA CORRIGIDA PARA OS SERVIÇOS
+@app.route('/servicio/<tipo>')
+def servicio_detalle(tipo):
+    servicios_info = {
+        'pos-obra': {
+            'titulo': 'Limpieza Pos-Obra',
+            'descripcion': 'Limpieza técnica profunda tras reformas o construcción.',
+            'puntos': ['Eliminación de polvo fino', 'Limpieza de cristais e marcos', 'Desinfecção de superfícies'],
+            'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800'
+        },
+        'hogar': {
+            'titulo': 'Mantenimiento Hogar',
+            'descripcion': 'Cuidado constante e detalhado para sua casa.',
+            'puntos': ['Limpieza de cocina y baños', 'Aspirado y fregado', 'Orden general'],
+            'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=800'
+        }
+    }
+    info = servicios_info.get(tipo)
+    if not info:
+        return redirect(url_for('home'))
+    return render_template('servicio.html', info=info)
 
 @app.route('/calculadora', methods=['GET', 'POST'])
 def calculadora():
@@ -106,7 +126,6 @@ def calculadora():
                 f"💰 TOTAL: {total:.2f}€ (IVA incl.)"
             )
 
-            # Salvar Lead no Banco
             conn = get_db_connection()
             cursor = conn.cursor()
             query = """
@@ -118,7 +137,6 @@ def calculadora():
             conn.commit()
             conn.close()
 
-            # Notificar por E-mail
             msg = Message(subject=f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
             msg.body = presupuesto_final
             mail.send(msg)
@@ -129,7 +147,7 @@ def calculadora():
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
-# --- 6. RUTAS DE ADMINISTRACIÓN ---
+# --- 6. ADMINISTRACIÓN ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -159,8 +177,6 @@ def admin_panel():
     except Exception as e:
         return "Error al conectar con la base de datos.", 500
 
-# --- 7. LANZAMIENTO ---
 if __name__ == '__main__':
-    # O Render gerencia a porta automaticamente
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
