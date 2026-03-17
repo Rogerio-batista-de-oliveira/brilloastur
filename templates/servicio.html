@@ -1,112 +1,193 @@
-{% extends "layout.html" %}
+from flask import Flask, render_template, request, redirect, url_for, session, flash
+from flask_mail import Mail, Message
+import mysql.connector
+from functools import wraps
+import os
 
-{% block content %}
-<div class="container py-4 py-lg-5">
-    <div class="row align-items-center g-4 g-lg-5 mb-5">
-        <div class="col-lg-6 text-center">
-            <img src="{{ info.imagen }}" class="img-fluid rounded-4 shadow-lg mb-3 mb-lg-0" alt="{{ info.titulo }}" style="max-height: 400px; width: 100%; object-fit: cover;">
-        </div>
+app = Flask(__name__)
+
+# --- 1. CONFIGURACIÓN DE SEGURIDAD ---
+app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2026') 
+ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
+ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
+
+# --- 2. CONFIGURACIÓN DE CORREO (Gmail) ---
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USER', 'rogerioba28@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASS', 'hkvotigphqueowdc')  
+app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
+mail = Mail(app)
+
+# --- 3. CONEXIÓN BASE DE DATOS (Sincronizada com TiDB Cloud + SSL) ---
+def get_db_connection():
+    return mysql.connector.connect(
+        host=os.environ.get('DB_HOST'),
+        user=os.environ.get('DB_USER'),
+        password=os.environ.get('DB_PASS'),
+        database=os.environ.get('DB_NAME'),
+        port=int(os.environ.get('DB_PORT', 4000)),
+        ssl_verify_cert=True,
+        ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
+    )
+
+# --- 4. DECORADOR DE PROTECCIÓN ---
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'logged_in' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- 5. RUTAS PÚBLICAS ---
+
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/servicio/<tipo>')
+def servicio_detalle(tipo):
+    servicios_info = {
+        'pos-obra': {
+            'titulo': 'Limpieza Pos-Obra',
+            'descripcion': 'Limpieza técnica profunda tras reformas o construcción.',
+            'puntos': ['Eliminación de polvo fino', 'Limpieza de cristales y marcos', 'Desinfección de superficies'],
+            'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800'
+        },
+        'hogar': {
+            'titulo': 'Mantenimiento Hogar',
+            'descripcion': 'Cuidado constante y detallado para tu casa en Asturias.',
+            'puntos': ['Limpieza de cocina y baños', 'Aspirado y fregado profesional', 'Orden y desinfección'],
+            'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=800'
+        }
+    }
+    info = servicios_info.get(tipo)
+    if not info:
+        return redirect(url_for('home'))
+    return render_template('servicio.html', info=info)
+
+@app.route('/calculadora', methods=['GET', 'POST'])
+def calculadora():
+    presupuesto_final = None
+    ciudades_lista = []
+    
+    # 1. Carregar lista de cidades para o menu
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT nombre FROM localidades ORDER BY nombre ASC")
+        ciudades_lista = [row['nombre'].title() for row in cursor.fetchall()]
+        conn.close()
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar cidades: {e}")
+
+    if request.method == 'POST':
+        cliente = request.form.get('cliente', 'Cliente')
+        telefono = request.form.get('telefono', 'N/A')
+        email_cliente = request.form.get('email', 'N/A')
+        cp = request.form.get('cp', '')
+        calle = request.form.get('calle', '')
+        numero = request.form.get('numero', '')
+        piso = request.form.get('piso', '')
+        direccion_input = request.form.get('direccion', '').lower().strip()
+        opcion_servicio = request.form.get('servicio', '1')
         
-        <div class="col-lg-6 text-center text-lg-start">
-            <nav aria-label="breadcrumb" class="d-none d-md-inline-block"> <ol class="breadcrumb">
-                    <li class="breadcrumb-item"><a href="/" class="text-decoration-none">Inicio</a></li>
-                    <li class="breadcrumb-item active">{{ info.titulo }}</li>
-                </ol>
-            </nav>
+        conn = None
+        try:
+            horas = float(request.form.get('horas', 1) or 1)
+            conn = get_db_connection()
+            cursor = conn.cursor(dictionary=True)
             
-            <h1 class="display-5 fw-bold text-dark mt-2">{{ info.titulo }}</h1>
-            <p class="lead text-muted mb-4 px-2 px-lg-0">{{ info.descripcion }}</p>
+            # Buscar dados de distância e tarifa
+            cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (direccion_input,))
+            loc_data = cursor.fetchone()
             
-            <div class="card border-0 bg-light p-3 p-md-4 rounded-4 mb-4 shadow-sm text-start">
-                <h5 class="fw-bold mb-3 text-primary"><i class="bi bi-stars me-2"></i>¿Qué incluye?</h5>
-                <ul class="list-unstyled mb-0">
-                    {% for p in info.puntos %}
-                    <li class="mb-2 d-flex align-items-start">
-                        <i class="bi bi-check-circle-fill text-success me-2 mt-1"></i> 
-                        <span>{{ p }}</span>
-                    </li>
-                    {% endfor %}
-                </ul>
-            </div>
+            cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
+            serv_data = cursor.fetchone()
 
-            <div class="d-grid gap-3 d-md-flex justify-content-lg-start">
-                <a href="/calculadora" class="btn btn-warning btn-lg px-4 fw-bold shadow-sm py-3">
-                    📊 CALCULAR PRESUPUESTO
-                </a>
-                <a href="https://wa.me/34674261332?text=Hola,%20me%20gustaría%20más%20información%20sobre%20{{ info.titulo }}" 
-                   class="btn btn-success btn-lg px-4 d-flex align-items-center justify-content-center py-3">
-                    <i class="bi bi-whatsapp me-2"></i> WHATSAPP
-                </a>
-            </div>
-        </div>
-    </div>
+            km_ida = loc_data['distancia_km'] if loc_data else 0
+            total_peajes = 27.00 if (loc_data and loc_data['tiene_peaje']) else 0.0
+            nombre_serv = serv_data['nombre'] if serv_data else "Servicio"
+            precio_hora = float(serv_data['tarifa_hora']) if serv_data else 19.0
 
-    <hr class="my-5 opacity-25">
+            # Lógica de Cálculo Brillo Astur
+            mano_de_obra = horas * precio_hora
+            coste_desplazamiento = ((km_ida * 2) / 10) * 2 
+            subtotal = mano_de_obra + coste_desplazamiento + total_peajes
+            iva = subtotal * 0.21
+            total = subtotal + iva
 
-    <div class="row justify-content-center">
-        <div class="col-12 col-lg-10">
-            {% if "Obra" in info.titulo %}
-            <div class="text-center mb-4 px-2">
-                <h2 class="fw-bold h1">Tú estrenas la reforma, nosotros eliminamos la obra</h2>
-            </div>
-            <div class="p-3 p-md-5 bg-white rounded-4 shadow-sm border">
-                <p class="fs-5 text-muted mb-4">La última fase de tu proyecto es nuestra especialidad.</p>
-                <div class="lh-lg">
-                    <p>Sabemos que después de meses de ruido, escombros y polvo, lo único que quieres es disfrutar de tu nuevo espacio. La suciedad de obra es un polvo fino que requiere un tratamiento técnico.</p>
-                    <p class="fw-bold text-dark border-start border-4 border-primary ps-3 my-4">En Brillo Astur, convertimos una zona en obras en un hogar listo para vivir.</p>
-                </div>
-                
-                <h4 class="fw-bold mt-5 mb-4 text-primary">¿Cómo lo hacemos?</h4>
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <div class="h-100 p-3 bg-light rounded-3">
-                            <p><strong><i class="bi bi-tools me-2"></i>Desincrustado Técnico:</strong> Eliminamos restos de obra en suelos sin dañar los materiales.</p>
-                            <p class="mb-0"><strong><i class="bi bi-window me-2"></i>Cristales y Marcos:</strong> Limpieza profunda eliminando pegatinas y sellantes.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="h-100 p-3 bg-light rounded-3">
-                            <p><strong><i class="bi bi-wind me-2"></i>Polvo en Suspensión:</strong> Aspirado industrial para garantizar un aire limpio.</p>
-                            <p class="mb-0"><strong><i class="bi bi-gear-wide-connected me-2"></i>Maquinaria Profesional:</strong> Rotativas y aspiradoras de alta potencia.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="alert alert-info border-0 mt-5 text-center fw-bold py-3">
-                    ¡No pierdas días limpiando! Pide tu presupuesto ahora.
-                </div>
-            </div>
+            presupuesto_final = (
+                f"✨ BRILLO ASTUR - PRESUPUESTO ✨\n\n"
+                f"👤 CLIENTE: {cliente}\n"
+                f"📞 TEL: {telefono}\n"
+                f"🛠 SERVICIO: {nombre_serv}\n"
+                f"💰 TOTAL: {total:.2f}€ (IVA incl.)"
+            )
 
-            {% else %}
-            <div class="text-center mb-4 px-2">
-                <h2 class="fw-bold h1">Nos encargamos del brillo de tu hogar</h2>
-            </div>
-            <div class="p-3 p-md-5 bg-white rounded-4 shadow-sm border">
-                <p class="fs-5 text-muted">Tu casa es tu refugio, no tu segunda jornada de trabajo.</p>
-                <div class="lh-lg">
-                    <p>En Brillo Astur, entendemos que tu tiempo es el activo más valioso. Te ofrecemos un servicio de confianza, puntualidad y detalle en Asturias.</p>
-                </div>
-                
-                <h4 class="fw-bold mt-5 mb-4 text-primary">¿Por qué elegirnos?</h4>
-                <div class="row g-4">
-                    <div class="col-md-6">
-                        <div class="p-3">
-                            <p><strong><i class="bi bi-house-heart me-2 text-danger"></i>Confianza Asturiana:</strong> Somos de Mieres, serios y cercanos.</p>
-                            <p><strong><i class="bi bi-shield-check me-2 text-success"></i>Desinfección:</strong> Atención crítica en baños y cocinas.</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="p-3">
-                            <p><strong><i class="bi bi-droplet me-2 text-info"></i>Productos Top:</strong> Cuidamos tus muebles y superficies.</p>
-                            <p><strong><i class="bi bi-person-check me-2 text-primary"></i>Personal:</strong> Equipo formado, discreto y meticuloso.</p>
-                        </div>
-                    </div>
-                </div>
-                <div class="alert alert-success border-0 mt-5 text-center fw-bold py-3">
-                    Imagina llegar a casa y que todo esté perfecto.
-                </div>
-            </div>
-            {% endif %}
-        </div>
-    </div>
-</div>
-{% endblock %}
+            # SALVAR NO BANCO (Crítico)
+            query = """
+                INSERT INTO presupuestos (nombre_cliente, telefono, email, cp, calle, numero, piso, localidad, servicio_id, horas_estimadas, total_presupuestado)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            valores = (cliente, telefono, email_cliente, cp, calle, numero, piso, direccion_input.title(), opcion_servicio, horas, total)
+            cursor.execute(query, valores)
+            conn.commit()
+
+            # ENVIO DE E-MAIL (Com proteção contra Timeout)
+            try:
+                msg = Message(subject=f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
+                msg.body = presupuesto_final
+                mail.send(msg)
+            except Exception as mail_err:
+                print(f"⚠️ Erro ao enviar e-mail (mas orçamento salvo): {mail_err}")
+
+        except Exception as e:
+            print(f"❌ Erro Crítico: {e}")
+            if conn: conn.rollback()
+            flash("Hubo un error al procesar el presupuesto. Intente de nuevo.", "danger")
+        finally:
+            if conn and conn.is_connected():
+                conn.close() # FECHA SEMPRE A CONEXÃO
+
+    return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
+
+# --- 6. ADMINISTRACIÓN ---
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
+            session['logged_in'] = True
+            return redirect(url_for('admin_panel'))
+        else:
+            flash('Usuario o contraseña incorrectos', 'danger')
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.pop('logged_in', None)
+    return redirect(url_for('login'))
+
+@app.route('/admin')
+@login_required
+def admin_panel():
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute("SELECT p.*, s.nombre as servicio_nombre FROM presupuestos p LEFT JOIN servicios s ON p.servicio_id = s.id ORDER BY p.fecha_creacion DESC")
+        datos = cursor.fetchall()
+        return render_template('admin.html', presupuestos=datos)
+    except Exception as e:
+        return f"Error de conexión: {e}", 500
+    finally:
+        if conn and conn.is_connected():
+            conn.close()
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
