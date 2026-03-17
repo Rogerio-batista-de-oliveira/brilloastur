@@ -2,33 +2,38 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_mail import Mail, Message
 import mysql.connector
 from functools import wraps
+import os
 
 app = Flask(__name__)
 
 # --- CONFIGURACIÓN DE SEGURIDAD ---
-app.secret_key = 'brillo_astur_secret_key_2024' 
-ADMIN_USER = 'admin'
-ADMIN_PASS = 'Brillo2024*' 
+# Se obtienen de las variables de entorno de Render para mayor seguridad
+app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2024') 
+ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
+ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
 
 # --- CONFIGURACIÓN DE CORREO (Gmail) ---
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'
 app.config['MAIL_PORT'] = 587
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_USERNAME'] = 'rogerioba28@gmail.com'
-app.config['MAIL_PASSWORD'] = 'hkvotigphqueowdc'  
-app.config['MAIL_DEFAULT_SENDER'] = 'rogerioba28@gmail.com'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USER', 'rogerioba28@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASS', 'hkvotigphqueowdc')  
+app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 mail = Mail(app)
 
-# --- FUNCIÓN CONEXIÓN BASE DE DATOS ---
+# --- FUNCIÓN CONEXIÓN BASE DE DATOS (Configurada para TiDB Cloud) ---
 def get_db_connection():
     return mysql.connector.connect(
-        host="localhost",
-        user="root",
-        password="",
-        database="brilloastur_db"
+        host=os.environ.get('DB_HOST', 'localhost'),
+        user=os.environ.get('DB_USER', 'root'),
+        password=os.environ.get('DB_PASS', ''),
+        database=os.environ.get('DB_NAME', 'brilloastur_db'),
+        port=int(os.environ.get('DB_PORT', 4000)),
+        # 🛡️ IMPORTANTE PARA TiDB CLOUD: Conexión segura SSL
+        ssl_verify_cert=True,
+        ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
-
 
 # --- DECORADOR PARA PROTEGER EL PANEL ---
 def login_required(f):
@@ -39,22 +44,21 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+# --- RUTAS DE GESTIÓN ---
+
 @app.route('/eliminar_presupuesto/<int:id>')
 @login_required
 def eliminar_presupuesto(id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Comando para remover o registro permanentemente
         cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
         conn.commit()
         conn.close()
-        # Mensagem de feedback (opcional, mas recomendada)
         flash(f'Presupuesto #{id} eliminado.', 'warning')
     except Exception as e:
         print(f"❌ Error: {e}")
         flash('No se pudo eliminar.', 'danger')
-    
     return redirect(url_for('admin_panel'))
 
 # --- RUTAS PÚBLICAS ---
@@ -147,7 +151,6 @@ def calculadora():
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
-# --- ROTA DE SERVICIOS (PARA RESOLVER O ERRO 404) ---
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
     servicios_info = {
@@ -213,8 +216,10 @@ def actualizar_estatus(id):
         flash(f'Presupuesto #{id} actualizado ✅', 'success')
     except Exception as e:
         print(f"❌ Error: {e}")
-        flash('No se pudo actualizar o estado', 'danger')
+        flash('No se pudo actualizar el estado', 'danger')
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Puerto dinámico para Render
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
