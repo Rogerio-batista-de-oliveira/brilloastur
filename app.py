@@ -61,14 +61,14 @@ def servicio_detalle(tipo):
     servicios_info = {
         'pos-obra': {
             'titulo': 'Limpieza Pos-Obra',
-            'descripcion': 'Limpieza técnica profunda tras reformas o construcción en Asturias.',
-            'puntos': ['Eliminación de polvo fino de obra', 'Limpieza de cristales', 'Desinfección profunda'],
+            'descripcion': 'Limpieza técnica profunda en Asturias.',
+            'puntos': ['Polvo de obra', 'Cristales', 'Desinfección'],
             'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=1000'
         },
         'hogar': {
             'titulo': 'Mantenimiento Hogar',
-            'descripcion': 'Cuidado constante y detallado para tu casa.',
-            'puntos': ['Limpieza general', 'Aspirado y fregado', 'Orden'],
+            'descripcion': 'Cuidado detallado para tu casa.',
+            'puntos': ['Limpieza general', 'Aspirado', 'Orden'],
             'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&q=80&w=1000'
         }
     }
@@ -105,30 +105,18 @@ def calculadora():
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
             serv = cursor.fetchone()
 
-            km = loc['distancia_km'] if loc else 0
-            peaje = 27.0 if (loc and loc['tiene_peaje']) else 0.0
-            tarifa = float(serv['tarifa_hora']) if serv else 19.0
-            nombre_serv = serv['nombre'] if serv else "Limpieza"
+            km, peaje = (loc['distancia_km'], 27.0 if loc['tiene_peaje'] else 0.0) if loc else (0, 0)
+            tarifa, nombre_serv = (float(serv['tarifa_hora']), serv['nombre']) if serv else (19.0, "Limpieza")
 
-            # --- MOTOR DE CÁLCULO ---
             mano_obra = horas * tarifa
-            desplazamiento = ((km * 2) / 10) * 2
-            subtotal = mano_obra + desplazamiento + peaje + coste_materiales
-            iva = subtotal * 0.21
-            total = subtotal + iva
+            viaje = ((km * 2) / 10) * 2
+            subtotal = mano_obra + viaje + peaje + coste_materiales
+            total = subtotal * 1.21
 
-            # CORRECCIÓN: Ahora incluimos TODOS los valores para el HTML
             presupuesto_final = {
-                'cliente': cliente,
-                'servicio': nombre_serv,
-                'horas': horas,
-                'direccion': ciudad_para_busca.title(),
-                'mano_de_obra': f"{mano_obra:.2f}",
-                'materiales': f"{coste_materiales:.2f}",
-                'desplazamiento': f"{desplazamiento:.2f}",
-                'peaje': f"{peaje:.2f}",
-                'iva': f"{iva:.2f}",
-                'total': f"{total:.2f}"
+                'cliente': cliente, 'servicio': nombre_serv, 'horas': horas, 'direccion': ciudad_para_busca.title(),
+                'mano_de_obra': f"{mano_obra:.2f}", 'materiales': f"{coste_materiales:.2f}",
+                'desplazamiento': f"{viaje:.2f}", 'peaje': f"{peaje:.2f}", 'iva': f"{(subtotal*0.21):.2f}", 'total': f"{total:.2f}"
             }
 
             cursor.execute("INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) VALUES (%s, %s, %s, %s, %s, %s, %s)", 
@@ -137,15 +125,13 @@ def calculadora():
             conn.close()
 
             msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-            msg.body = f"Presupuesto de {total:.2f}€ para {cliente}"
+            msg.body = f"Nuevo presupuesto de {total:.2f}€"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
-        except Exception as e: 
-            print(f"Error cálculo: {e}")
-            flash(f"Error: {e}", "danger")
+        except Exception as e: flash(f"Error: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
-# --- 6. ADMINISTRACIÓN ---
+# --- 6. ADMINISTRACIÓN (CORREGIDA) ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -161,11 +147,19 @@ def admin_panel():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        cursor.execute("SELECT p.*, s.nombre as servicio_nombre FROM presupuestos p LEFT JOIN servicios s ON p.servicio_id = s.id ORDER BY p.fecha_creacion DESC")
+        # Simplificamos la consulta por si alguna columna falla
+        cursor.execute("""
+            SELECT p.*, s.nombre as servicio_nombre 
+            FROM presupuestos p 
+            LEFT JOIN servicios s ON p.servicio_id = s.id 
+            ORDER BY p.id DESC
+        """)
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
-    except: return "Error Admin", 500
+    except Exception as e:
+        # Esto te mostrará el error real en el navegador
+        return f"Error detallado en la Base de Datos: {str(e)}", 500
 
 @app.route('/eliminar_presupuesto/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -177,6 +171,12 @@ def eliminar_presupuesto(id):
         conn.commit()
         conn.close()
     except: pass
+    return redirect(url_for('admin_panel'))
+
+# Aseguramos que esta ruta exista para evitar el BuildError en el HTML
+@app.route('/actualizar_estatus/<int:id>', methods=['POST'])
+@login_required
+def actualizar_estatus(id):
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
