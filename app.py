@@ -52,23 +52,40 @@ def home():
 
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
+    # Dicionário de dados para as páginas
     servicios_info = {
         'pos-obra': {
             'titulo': 'Limpieza Pos-Obra',
             'descripcion': 'Limpieza técnica profunda tras reformas o construcción.',
-            'puntos': ['Eliminación de polvo fino', 'Limpieza de cristales y marcos', 'Desinfección de superficies'],
+            'puntos': [
+                'Eliminación de polvo fino de obra',
+                'Limpieza de cristales, marcos y persianas',
+                'Desinfección profunda de baños y cocina',
+                'Tratamiento de suelos post-reforma'
+            ],
             'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800'
         },
         'hogar': {
             'titulo': 'Mantenimiento Hogar',
-            'descripcion': 'Cuidado constante e detalhado para sua casa em Asturias.',
-            'puntos': ['Limpieza de cocina y baños', 'Aspirado y fregado profesional', 'Orden y desinfección'],
+            'descripcion': 'Cuidado constante y detallado para tu casa en Asturias.',
+            'puntos': [
+                'Limpieza general de mantenimiento',
+                'Desinfección de superficies',
+                'Limpieza de cocina y electrodomésticos',
+                'Aspirado e fregado de suelos'
+            ],
             'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=800'
         }
     }
+
+    # Busca a informação baseada no que veio na URL
     info = servicios_info.get(tipo)
+
+    # Se o usuário digitar algo errado na URL, volta para a Home
     if not info:
         return redirect(url_for('home'))
+
+    # Renderiza o arquivo templates/servicio.html passando os dados
     return render_template('servicio.html', info=info)
 
 @app.route('/calculadora', methods=['GET', 'POST'])
