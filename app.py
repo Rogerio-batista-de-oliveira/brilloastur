@@ -83,7 +83,6 @@ def servicio_detalle(tipo):
 def calculadora():
     presupuesto_final = None
     ciudades_lista = []
-    
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -135,9 +134,8 @@ def calculadora():
             conn.close()
 
             msg = Message(subject=f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-            msg.body = f"Presupuesto generado para {cliente} por {total:.2f}€"
+            msg.body = f"Presupuesto para {cliente}: {total:.2f}€"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
-
         except Exception as e:
             flash(f"Error: {e}", "danger")
 
@@ -164,7 +162,6 @@ def admin_panel():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Asegúrate de que la tabla 'presupuestos' tenga una columna 'id'
         cursor.execute("SELECT p.*, s.nombre as servicio_nombre FROM presupuestos p LEFT JOIN servicios s ON p.servicio_id = s.id ORDER BY p.fecha_creacion DESC")
         datos = cursor.fetchall()
         conn.close()
@@ -172,7 +169,6 @@ def admin_panel():
     except Exception as e:
         return f"Error en Panel Admin: {e}", 500
 
-# NUEVA RUTA: Esta es la que faltaba y causaba el error 500
 @app.route('/actualizar_estatus/<int:id>', methods=['POST'])
 @login_required
 def actualizar_estatus(id):
@@ -180,14 +176,27 @@ def actualizar_estatus(id):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        query = "UPDATE presupuestos SET estatus = %s WHERE id = %s"
-        cursor.execute(query, (nuevo_estatus, id))
+        cursor.execute("UPDATE presupuestos SET estatus = %s WHERE id = %s", (nuevo_estatus, id))
         conn.commit()
         conn.close()
-        flash("Estatus actualizado correctamente", "success")
+        flash("Estatus actualizado", "success")
     except Exception as e:
-        flash(f"Error al actualizar: {e}", "danger")
-    
+        flash(f"Error: {e}", "danger")
+    return redirect(url_for('admin_panel'))
+
+# RUTA PARA ELIMINAR: Esta es la que faltaba ahora
+@app.route('/eliminar_presupuesto/<int:id>', methods=['POST'])
+@login_required
+def eliminar_presupuesto(id):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
+        conn.commit()
+        conn.close()
+        flash("Presupuesto eliminado correctamente", "success")
+    except Exception as e:
+        flash(f"Error al eliminar: {e}", "danger")
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
