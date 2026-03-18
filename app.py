@@ -42,6 +42,7 @@ def get_db_connection():
         ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
 
+# --- 4. PROTECCIÓN DE RUTAS ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -131,7 +132,7 @@ def calculadora():
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
-# --- 6. ADMINISTRACIÓN (CORREGIDA) ---
+# --- 6. ADMINISTRACIÓN ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -139,7 +140,15 @@ def login():
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
+        else:
+            flash("Credenciales incorrectas", "danger")
     return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    flash("Has cerrado sesión", "info")
+    return redirect(url_for('login'))
 
 @app.route('/admin')
 @login_required
@@ -147,7 +156,6 @@ def admin_panel():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
-        # Simplificamos la consulta por si alguna columna falla
         cursor.execute("""
             SELECT p.*, s.nombre as servicio_nombre 
             FROM presupuestos p 
@@ -158,8 +166,7 @@ def admin_panel():
         conn.close()
         return render_template('admin.html', presupuestos=datos)
     except Exception as e:
-        # Esto te mostrará el error real en el navegador
-        return f"Error detallado en la Base de Datos: {str(e)}", 500
+        return f"Error en la Base de Datos: {str(e)}", 500
 
 @app.route('/eliminar_presupuesto/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -170,13 +177,22 @@ def eliminar_presupuesto(id):
         cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
         conn.commit()
         conn.close()
-    except: pass
+        flash("Presupuesto eliminado", "success")
+    except Exception as e:
+        flash(f"Error al eliminar: {e}", "danger")
     return redirect(url_for('admin_panel'))
 
-# Aseguramos que esta ruta exista para evitar el BuildError en el HTML
 @app.route('/actualizar_estatus/<int:id>', methods=['POST'])
 @login_required
 def actualizar_estatus(id):
+    nuevo_estatus = request.form.get('estatus')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE presupuestos SET estatus = %s WHERE id = %s", (nuevo_estatus, id))
+        conn.commit()
+        conn.close()
+    except: pass
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
