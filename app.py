@@ -50,7 +50,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- 5. RUTAS PÚBLICAS ---
+# --- 5. RUTAS PÚBLICAS (CON IMÁGENES CORREGIDAS) ---
 
 @app.route('/')
 def home():
@@ -58,12 +58,25 @@ def home():
 
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
+    # URLs de imagen actualizadas para mayor compatibilidad
     servicios_info = {
-        'pos-obra': {'titulo': 'Limpieza Pos-Obra', 'descripcion': 'Limpieza técnica profunda.', 'puntos': [], 'imagen': ''},
-        'hogar': {'titulo': 'Mantenimiento Hogar', 'descripcion': 'Cuidado constante.', 'puntos': [], 'imagen': ''}
+        'pos-obra': {
+            'titulo': 'Limpieza Pos-Obra',
+            'descripcion': 'Limpieza técnica profunda tras reformas o construcción en Asturias.',
+            'puntos': ['Eliminación de polvo fino de obra', 'Limpieza de cristales, marcos y persianas', 'Desinfección profunda de baños y cocina'],
+            'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=1000'
+        },
+        'hogar': {
+            'titulo': 'Mantenimiento Hogar',
+            'descripcion': 'Cuidado constante y detallado para que disfrutes de tu casa en Mieres y alrededores.',
+            'puntos': ['Limpieza general de mantenimiento', 'Aspirado y fregado de suelos', 'Limpieza de superficies y orden'],
+            'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&q=80&w=1000'
+        }
     }
     info = servicios_info.get(tipo)
-    return render_template('servicio.html', info=info) if info else redirect(url_for('home'))
+    if not info:
+        return redirect(url_for('home'))
+    return render_template('servicio.html', info=info)
 
 @app.route('/calculadora', methods=['GET', 'POST'])
 def calculadora():
@@ -95,12 +108,23 @@ def calculadora():
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
             serv = cursor.fetchone()
 
-            km, peaje = (loc['distancia_km'], 27.0 if loc['tiene_peaje'] else 0.0) if loc else (0, 0)
-            tarifa, nombre_serv = (float(serv['tarifa_hora']), serv['nombre']) if serv else (19.0, "Limpieza")
+            km = loc['distancia_km'] if loc else 0
+            peaje = 27.0 if (loc and loc['tiene_peaje']) else 0.0
+            tarifa = float(serv['tarifa_hora']) if serv else 19.0
+            nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            total = ((horas * tarifa) + (((km * 2) / 10) * 2) + peaje + coste_materiales) * 1.21
+            # Cálculo
+            mano_obra = horas * tarifa
+            viaje = ((km * 2) / 10) * 2
+            subtotal = mano_obra + viaje + peaje + coste_materiales
+            total = subtotal * 1.21
 
-            presupuesto_final = {'cliente': cliente, 'total': f"{total:.2f}", 'servicio': nombre_serv} # Simplificado para el ejemplo
+            presupuesto_final = {
+                'cliente': cliente,
+                'total': f"{total:.2f}",
+                'servicio': nombre_serv,
+                'direccion': ciudad_para_busca.title()
+            }
 
             cursor.execute("INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) VALUES (%s, %s, %s, %s, %s, %s, %s)", 
                            (cliente, telefono, email_cliente, ciudad_para_busca.title(), opcion_servicio, horas, total))
@@ -108,7 +132,7 @@ def calculadora():
             conn.close()
 
             msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com'])
-            msg.body = f"Presupuesto de {total:.2f}€"
+            msg.body = f"Presupuesto de {total:.2f}€ para {cliente}"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
         except Exception as e: flash(f"Error: {e}", "danger")
 
@@ -124,11 +148,6 @@ def login():
             return redirect(url_for('admin_panel'))
     return render_template('login.html')
 
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
-
 @app.route('/admin')
 @login_required
 def admin_panel():
@@ -139,36 +158,19 @@ def admin_panel():
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
-    except Exception as e: return f"Error: {e}", 500
+    except: return "Error", 500
 
-# MODIFICACIÓN CRÍTICA: Añadido 'GET' para que la papelera funcione como enlace directo
 @app.route('/eliminar_presupuesto/<int:id>', methods=['GET', 'POST'])
 @login_required
 def eliminar_presupuesto(id):
     try:
         conn = get_db_connection()
-        cursor = conn.close() # Reset
-        conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
         conn.commit()
         conn.close()
-        flash("Presupuesto eliminado correctamente", "success")
-    except Exception as e:
-        flash(f"Error al eliminar: {e}", "danger")
-    return redirect(url_for('admin_panel'))
-
-@app.route('/actualizar_estatus/<int:id>', methods=['GET', 'POST'])
-@login_required
-def actualizar_estatus(id):
-    nuevo_estatus = request.form.get('estatus') or request.args.get('estatus')
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE presupuestos SET estatus = %s WHERE id = %s", (nuevo_estatus, id))
-        conn.commit()
-        conn.close()
-    except: pass
+        flash("Eliminado correctamente", "success")
+    except: flash("Error al eliminar", "danger")
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
