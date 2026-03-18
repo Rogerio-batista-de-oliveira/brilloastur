@@ -7,19 +7,18 @@ import os
 app = Flask(__name__)
 
 # --- 1. CONFIGURACIÓN DE SEGURIDAD ---
-app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_prod_2026') 
+app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2026') 
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
 
 # --- 2. CONFIGURACIÓN DE CORREO (Gmail) ---
-app.config.update(
-    MAIL_SERVER='smtp.gmail.com',
-    MAIL_PORT=587,
-    MAIL_USE_TLS=True,
-    MAIL_USERNAME=os.environ.get('MAIL_USER', 'rogerioba28@gmail.com'),
-    MAIL_PASSWORD=os.environ.get('MAIL_PASS', 'hkvotigphqueowdc'),
-    MAIL_DEFAULT_SENDER=os.environ.get('MAIL_USER', 'rogerioba28@gmail.com')
-)
+app.config['MAIL_SERVER'] = 'smtp.gmail.com'
+app.config['MAIL_PORT'] = 587
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USE_SSL'] = False
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USER', 'rogerioba28@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASS', 'hkvotigphqueowdc')
+app.config['MAIL_DEFAULT_SENDER'] = app.config['MAIL_USERNAME']
 mail = Mail(app)
 
 # --- 3. CONEXIÓN BASE DE DATOS ---
@@ -31,8 +30,7 @@ def get_db_connection():
         database=os.environ.get('DB_NAME'),
         port=int(os.environ.get('DB_PORT', 4000)),
         ssl_verify_cert=True,
-        ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'),
-        connect_timeout=10
+        ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
 
 # --- 4. DECORADOR DE PROTECCIÓN ---
@@ -50,42 +48,26 @@ def login_required(f):
 def home():
     return render_template('home.html')
 
+# CORREÇÃO CRÍTICA AQUI: Adicionado <tipo>
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
-    # Dicionário de dados para as páginas
     servicios_info = {
         'pos-obra': {
             'titulo': 'Limpieza Pos-Obra',
             'descripcion': 'Limpieza técnica profunda tras reformas o construcción.',
-            'puntos': [
-                'Eliminación de polvo fino de obra',
-                'Limpieza de cristales, marcos y persianas',
-                'Desinfección profunda de baños y cocina',
-                'Tratamiento de suelos post-reforma'
-            ],
+            'puntos': ['Eliminación de polvo fino', 'Limpieza de cristales y marcos', 'Desinfección de superficies'],
             'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800'
         },
         'hogar': {
             'titulo': 'Mantenimiento Hogar',
-            'descripcion': 'Cuidado constante y detallado para tu casa en Asturias.',
-            'puntos': [
-                'Limpieza general de mantenimiento',
-                'Desinfección de superficies',
-                'Limpieza de cocina y electrodomésticos',
-                'Aspirado e fregado de suelos'
-            ],
+            'descripcion': 'Cuidado constante e detalhado para sua casa em Asturias.',
+            'puntos': ['Limpieza de cocina y baños', 'Aspirado y fregado profesional', 'Orden y desinfección'],
             'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=800'
         }
     }
-
-    # Busca a informação baseada no que veio na URL
     info = servicios_info.get(tipo)
-
-    # Se o usuário digitar algo errado na URL, volta para a Home
     if not info:
         return redirect(url_for('home'))
-
-    # Renderiza o arquivo templates/servicio.html passando os dados
     return render_template('servicio.html', info=info)
 
 @app.route('/calculadora', methods=['GET', 'POST'])
@@ -99,8 +81,8 @@ def calculadora():
         cursor.execute("SELECT nombre FROM localidades ORDER BY nombre ASC")
         ciudades_lista = [row['nombre'].title() for row in cursor.fetchall()]
         conn.close()
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ Erro ao carregar cidades: {e}")
 
     if request.method == 'POST':
         cliente = request.form.get('cliente', 'Cliente')
@@ -110,14 +92,14 @@ def calculadora():
         calle = request.form.get('calle', 'N/A')
         direccion_input = request.form.get('direccion', '').lower().strip()
         opcion_servicio = request.form.get('servicio', '1')
-        horas = float(request.form.get('horas', 1) or 1)
         
         # Opción de Materiales
         incluye_materiales = True if request.form.get('materiales') else False
-        coste_materiales = 20.0 if incluye_materiales else 0.0
+        coste_materiales = 20.0 if inclui_materiales else 0.0
 
         conn = None
         try:
+            horas = float(request.form.get('horas', 1) or 1)
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
@@ -132,14 +114,14 @@ def calculadora():
             nombre_serv = serv_data['nombre'] if serv_data else "Servicio"
             precio_hora = float(serv_data['tarifa_hora']) if serv_data else 19.0
 
-            # MOTOR DE CÁLCULO
+            # CÁLCULOS
             mano_de_obra = horas * precio_hora
             coste_desplazamiento = ((km_ida * 2) / 10) * 2 
             subtotal = mano_de_obra + coste_desplazamiento + total_peajes + coste_materiales
             iva = subtotal * 0.21
             total = subtotal + iva
 
-            # DICIONÁRIO PARA O HTML (Isso faz os detalhes aparecerem)
+            # DICIONÁRIO PARA O RESUMO DETALHADO
             presupuesto_final = {
                 'cliente': cliente,
                 'servicio': nombre_serv,
@@ -154,22 +136,26 @@ def calculadora():
             }
 
             # Salvar no Banco
-            query = """INSERT INTO presupuestos (nombre_cliente, telefono, email, cp, calle, localidad, servicio_id, horas_estimadas, total_presupuestado) 
-                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"""
-            cursor.execute(query, (cliente, telefono, email_cliente, cp, calle, direccion_input.title(), opcion_servicio, horas, total))
+            query = """
+                INSERT INTO presupuestos (nombre_cliente, telefono, email, cp, calle, localidad, servicio_id, horas_estimadas, total_presupuestado)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """
+            valores = (cliente, telefono, email_cliente, cp, calle, direccion_input.title(), opcion_servicio, horas, total)
+            cursor.execute(query, valores)
             conn.commit()
 
             # Notificar por Email
             try:
-                msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-                msg.body = f"Presupuesto generado para {cliente}: {total:.2f}€"
+                msg = Message(subject=f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
+                msg.body = f"Nuevo presupuesto de {cliente} por un total de {total:.2f}€"
                 mail.send(msg)
             except:
                 pass
 
         except Exception as e:
-            print(f"Error: {e}")
-            flash("Error al procesar el presupuesto.", "danger")
+            print(f"❌ Erro: {e}")
+            if conn: conn.rollback()
+            flash("Hubo un error al procesar el presupuesto.", "danger")
         finally:
             if conn and conn.is_connected():
                 conn.close()
@@ -184,7 +170,8 @@ def login():
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
-        flash('Usuario o contraseña incorrectos', 'danger')
+        else:
+            flash('Usuario o contraseña incorrectos', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -202,12 +189,12 @@ def admin_panel():
         cursor.execute("SELECT p.*, s.nombre as servicio_nombre FROM presupuestos p LEFT JOIN servicios s ON p.servicio_id = s.id ORDER BY p.fecha_creacion DESC")
         datos = cursor.fetchall()
         return render_template('admin.html', presupuestos=datos)
-    except:
-        return "Error de conexión", 500
+    except Exception as e:
+        return f"Error: {e}", 500
     finally:
         if conn and conn.is_connected():
             conn.close()
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
