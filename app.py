@@ -32,10 +32,19 @@ def get_db_connection():
         port=int(os.environ.get('DB_PORT', 4000)),
         ssl_verify_cert=True,
         ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt'),
-        connect_timeout=10 # Para evitar lentitud si el banco no responde rápido
+        connect_timeout=10 
     )
 
-# --- 4. RUTAS ---
+# --- 4. DECORADOR DE SEGURIDAD (Faltava este bloco!) ---
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# --- 5. RUTAS ---
 
 @app.route('/')
 def home():
@@ -43,15 +52,30 @@ def home():
 
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
-    # (Mantener igual que el anterior, solo asegurar que apunte a servicio.html)
-    return render_template('servicio.html', info={}) # Simplificado para el ejemplo
+    servicios_info = {
+        'pos-obra': {
+            'titulo': 'Limpieza Pos-Obra',
+            'descripcion': 'Limpieza técnica profunda tras reformas o construcción.',
+            'puntos': ['Eliminación de polvo fino', 'Limpieza de cristales y marcos', 'Desinfección de superficies'],
+            'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=800'
+        },
+        'hogar': {
+            'titulo': 'Mantenimiento Hogar',
+            'descripcion': 'Cuidado constante y detallado para tu casa en Asturias.',
+            'puntos': ['Limpieza de cocina y baños', 'Aspirado y fregado profesional', 'Orden y desinfección'],
+            'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?w=800'
+        }
+    }
+    info = servicios_info.get(tipo)
+    if not info:
+        return redirect(url_for('home'))
+    return render_template('servicio.html', info=info)
 
 @app.route('/calculadora', methods=['GET', 'POST'])
 def calculadora():
     presupuesto_final = None
     ciudades_lista = []
     
-    # Cargar ciudades para el select
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -61,7 +85,6 @@ def calculadora():
     except: pass
 
     if request.method == 'POST':
-        # Captura de todos los datos del formulario
         cliente = request.form.get('cliente', 'Cliente')
         telefono = request.form.get('telefono', 'N/A')
         email_cliente = request.form.get('email', 'N/A')
@@ -71,7 +94,6 @@ def calculadora():
         id_servicio = request.form.get('servicio', '1')
         horas = float(request.form.get('horas', 1) or 1)
         
-        # Lógica de Materiales (Checkbox en el HTML debe llamarse 'materiales')
         incluye_materiales = True if request.form.get('materiales') else False
         coste_materiales = 20.0 if incluye_materiales else 0.0
 
@@ -79,7 +101,6 @@ def calculadora():
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            # Datos de Localidad y Tarifa
             cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (direccion,))
             loc = cursor.fetchone()
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (id_servicio,))
@@ -90,14 +111,12 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # MOTOR DE CÁLCULO
             mano_de_obra = horas * tarifa
             desplazamiento = ((km * 2) / 10) * 2 
             subtotal = mano_de_obra + desplazamiento + peaje + coste_materiales
             iva = subtotal * 0.21
             total = subtotal + iva
 
-            # PRESUPUESTO DETALLADO (CASTELLANO)
             presupuesto_final = {
                 'cliente': cliente,
                 'servicio': nombre_serv,
@@ -111,31 +130,17 @@ def calculadora():
                 'total': f"{total:.2f}"
             }
 
-            # Guardar en DB
             query = """INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) 
                        VALUES (%s, %s, %s, %s, %s, %s, %s)"""
             cursor.execute(query, (cliente, telefono, email_cliente, direccion.title(), id_servicio, horas, total))
             conn.commit()
             conn.close()
 
-            # Enviar Email en segundo plano (simulado con try/except rápido)
             try:
                 msg = Message(f"Nuevo Presupuesto: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-                msg.body = f"""
-                NUEVO LEAD - BRILLO ASTUR
-                -------------------------
-                Cliente: {cliente}
-                Teléfono: {telefono}
-                Email: {email_cliente}
-                Dirección: {calle}, {direccion} (CP: {cp})
-                Servicio: {nombre_serv}
-                Horas: {horas}h
-                Materiales Incluidos: {'Sí' if incluye_materiales else 'No'}
-                -------------------------
-                TOTAL ESTIMADO: {total:.2f}€ (IVA incluido)
-                """
+                msg.body = f"Cliente: {cliente}\nServicio: {nombre_serv}\nTotal: {total:.2f}€"
                 mail.send(msg)
-            except: print("Email demoró demasiado, se envió después.")
+            except: print("Email demoró demasiado.")
 
         except Exception as e:
             print(f"Error: {e}")
@@ -149,7 +154,13 @@ def login():
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
+        flash('Credenciales incorrectas', 'danger')
     return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('home'))
 
 @app.route('/admin')
 @login_required
