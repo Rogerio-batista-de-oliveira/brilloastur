@@ -76,6 +76,7 @@ def calculadora():
     presupuesto_final = None
     ciudades_lista = []
     
+    # 1. Carregar lista de cidades para o formulário
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
@@ -88,11 +89,16 @@ def calculadora():
         cliente = request.form.get('cliente', 'Cliente')
         telefono = request.form.get('telefono', 'N/A')
         email_cliente = request.form.get('email', 'N/A')
-        direccion_input = request.form.get('direccion', '').lower().strip()
+        
+        # --- LÓGICA DE LIMPEZA DE ENDEREÇO (SOLUÇÃO PARA O ERRO 0.00€) ---
+        direccion_raw = request.form.get('direccion', '').lower().strip()
+        # Se vier "León, Castela e Leão", pegamos apenas "león" para buscar no banco
+        ciudad_para_busca = direccion_raw.split(',')[0].strip()
+        
         opcion_servicio = request.form.get('servicio', '1')
         horas = float(request.form.get('horas', 1) or 1)
         
-        # Opção de Materiales (Checkbox)
+        # Checkbox de Materiales
         incluye_materiales = True if request.form.get('materiales') else False
         coste_materiales = 20.0 if incluye_materiales else 0.0
 
@@ -100,32 +106,34 @@ def calculadora():
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
-            # Buscar dados da localidade (KM e Peaje)
-            cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (direccion_input,))
+            # Buscamos os dados logísticos usando o nome limpo da cidade
+            cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (ciudad_para_busca,))
             loc = cursor.fetchone()
             
-            # Buscar dados do serviço (Tarifa)
+            # Buscamos a tarifa do serviço
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
             serv = cursor.fetchone()
 
+            # Se loc for None (cidade não encontrada), usamos 0 para não quebrar o cálculo
             km = loc['distancia_km'] if loc else 0
             peaje = 27.0 if (loc and loc['tiene_peaje']) else 0.0
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # MOTOR DE CÁLCULO
+            # --- MOTOR DE CÁLCULO BRILLO ASTUR ---
             mano_de_obra = horas * tarifa
+            # Fórmula: (KM ida e volta / consumo médio 10km/l) * preço combustível (2€/l aprox)
             desplazamiento = ((km * 2) / 10) * 2 
             subtotal = mano_de_obra + desplazamiento + peaje + coste_materiales
             iva = subtotal * 0.21
             total = subtotal + iva
 
-            # CORREÇÃO CRÍTICA: Enviando como DICIONÁRIO para o HTML
+            # DICIONÁRIO PARA O RESUMO NO HTML (Agora com valores reais!)
             presupuesto_final = {
                 'cliente': cliente,
                 'servicio': nombre_serv,
                 'horas': horas,
-                'direccion': direccion_input.title(),
+                'direccion': direccion_raw.title(), # Mostramos o nome completo no recibo
                 'mano_de_obra': f"{mano_de_obra:.2f}",
                 'materiales': f"{coste_materiales:.2f}",
                 'desplazamiento': f"{desplazamiento:.2f}",
@@ -134,22 +142,22 @@ def calculadora():
                 'total': f"{total:.2f}"
             }
 
-            # Salvar no Banco
+            # Salvar no Banco (Usamos o nome limpo para a localidade na DB)
             query = """INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) 
                        VALUES (%s, %s, %s, %s, %s, %s, %s)"""
-            cursor.execute(query, (cliente, telefono, email_cliente, direccion_input.title(), opcion_servicio, horas, total))
+            cursor.execute(query, (cliente, telefono, email_cliente, ciudad_para_busca.title(), opcion_servicio, horas, total))
             conn.commit()
             conn.close()
 
-            # Enviar Email
+            # Enviar Email de Notificação
             try:
                 msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-                msg.body = f"Presupuesto para {cliente}: {total:.2f}€"
+                msg.body = f"Nuevo presupuesto generado para {cliente} por un total de {total:.2f}€"
                 mail.send(msg)
             except: pass
 
         except Exception as e:
-            flash(f"Error: {e}", "danger")
+            flash(f"Error en el servidor: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
