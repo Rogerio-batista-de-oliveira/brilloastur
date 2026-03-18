@@ -3,7 +3,7 @@ from flask_mail import Mail, Message
 import mysql.connector
 from functools import wraps
 import os
-import threading  # Importado para el envío en segundo plano
+import threading
 
 app = Flask(__name__)
 
@@ -12,7 +12,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2026')
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
 
-# --- 2. CONFIGURACIÓN DE CORREO ---
+# --- 2. CONFIGURACIÓN DE CORREO (Ajustada para Render) ---
 app.config.update(
     MAIL_SERVER='smtp.gmail.com',
     MAIL_PORT=587,
@@ -28,8 +28,10 @@ def send_async_email(app, msg):
     with app.app_context():
         try:
             mail.send(msg)
+            print("✅ Email enviado correctamente en segundo plano.")
         except Exception as e:
-            print(f"Error enviando email en segundo plano: {e}")
+            # Si hay error de red (Errno 101), se registra aquí sin afectar al usuario
+            print(f"❌ Error enviando email en segundo plano: {e}")
 
 # --- 3. CONEXIÓN BASE DE DATOS ---
 def get_db_connection():
@@ -84,29 +86,29 @@ def calculadora():
     presupuesto_final = None
     ciudades_lista = []
     
+    # Obtener ciudades para el dropdown
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT nombre FROM localidades ORDER BY nombre ASC")
         ciudades_lista = [row['nombre'].title() for row in cursor.fetchall()]
         conn.close()
-    except: pass
+    except Exception as e:
+        print(f"Error cargando ciudades: {e}")
 
     if request.method == 'POST':
-        cliente = request.form.get('cliente', 'Cliente')
-        telefono = request.form.get('telefono', 'N/A')
-        email_cliente = request.form.get('email', 'N/A')
-        
-        direccion_raw = request.form.get('direccion', '').lower().strip()
-        ciudad_para_busca = direccion_raw.split(',')[0].strip()
-        
-        opcion_servicio = request.form.get('servicio', '1')
-        horas = float(request.form.get('horas', 1) or 1)
-        
-        incluye_materiales = True if request.form.get('materiales') else False
-        coste_materiales = 20.0 if incluye_materiales else 0.0
-
         try:
+            # Captura de datos
+            cliente = request.form.get('cliente', 'Cliente')
+            telefono = request.form.get('telefono', 'N/A')
+            email_cliente = request.form.get('email', 'N/A')
+            direccion_raw = request.form.get('direccion', '').lower().strip()
+            ciudad_para_busca = direccion_raw.split(',')[0].strip()
+            opcion_servicio = request.form.get('servicio', '1')
+            horas = float(request.form.get('horas', 1) or 1)
+            coste_materiales = 20.0 if request.form.get('materiales') else 0.0
+
+            # Lógica de Base de Datos
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
@@ -121,7 +123,7 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # --- MOTOR DE CÁLCULO ---
+            # Motor de Cálculo Brillo Astur
             mano_de_obra = horas * tarifa
             desplazamiento = ((km * 2) / 10) * 2 
             subtotal = mano_de_obra + desplazamiento + peaje + coste_materiales
@@ -141,22 +143,26 @@ def calculadora():
                 'total': f"{total:.2f}"
             }
 
-            # Guardar en DB
+            # Guardar en Base de Datos
             query = """INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) 
                        VALUES (%s, %s, %s, %s, %s, %s, %s)"""
             cursor.execute(query, (cliente, telefono, email_cliente, ciudad_para_busca.title(), opcion_servicio, horas, total))
             conn.commit()
             conn.close()
 
-            # --- ENVÍO ASÍNCRONO (Segundo Plano) ---
-            # Esto permite que la página cargue sin esperar al servidor de Google Mail
-            msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-            msg.body = f"Nuevo presupuesto generado para {cliente} por un total de {total:.2f}€"
+            # --- ENVÍO ASÍNCRONO ---
+            # Preparamos el mensaje
+            msg = Message(
+                subject=f"Nuevo Lead Brillo Astur: {cliente}",
+                recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'],
+                body=f"Se ha generado un presupuesto detallado.\n\nCliente: {cliente}\nTeléfono: {telefono}\nTotal: {total:.2f}€\nServicio: {nombre_serv}"
+            )
             
-            # Crear y lanzar el hilo independiente
+            # Lanzamos el hilo para que el cliente no tenga que esperar
             threading.Thread(target=send_async_email, args=(app, msg)).start()
 
         except Exception as e:
+            print(f"Error en el proceso de cálculo: {e}")
             flash(f"Error en el servidor: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
@@ -186,7 +192,9 @@ def admin_panel():
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
-    except: return "Error", 500
+    except Exception as e:
+        print(f"Error en Panel Admin: {e}")
+        return f"Error en el servidor: {e}", 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
