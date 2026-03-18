@@ -12,7 +12,7 @@ app.secret_key = os.environ.get('SECRET_KEY', 'brillo_astur_secret_key_2026')
 ADMIN_USER = os.environ.get('ADMIN_USER', 'admin')
 ADMIN_PASS = os.environ.get('ADMIN_PASS', 'Brillo2024*') 
 
-# --- 2. CONFIGURACIÓN DE CORREO (Ajustada para Render) ---
+# --- 2. CONFIGURACIÓN DE CORREO ---
 app.config.update(
     MAIL_SERVER='smtp.gmail.com',
     MAIL_PORT=587,
@@ -23,15 +23,13 @@ app.config.update(
 )
 mail = Mail(app)
 
-# --- FUNCIÓN PARA ENVIAR EMAIL EN SEGUNDO PLANO ---
 def send_async_email(app, msg):
     with app.app_context():
         try:
             mail.send(msg)
-            print("✅ Email enviado correctamente en segundo plano.")
+            print("✅ Email enviado correctamente.")
         except Exception as e:
-            # Si hay error de red (Errno 101), se registra aquí sin afectar al usuario
-            print(f"❌ Error enviando email en segundo plano: {e}")
+            print(f"❌ Error enviando email: {e}")
 
 # --- 3. CONEXIÓN BASE DE DATOS ---
 def get_db_connection():
@@ -86,19 +84,16 @@ def calculadora():
     presupuesto_final = None
     ciudades_lista = []
     
-    # Obtener ciudades para el dropdown
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT nombre FROM localidades ORDER BY nombre ASC")
         ciudades_lista = [row['nombre'].title() for row in cursor.fetchall()]
         conn.close()
-    except Exception as e:
-        print(f"Error cargando ciudades: {e}")
+    except: pass
 
     if request.method == 'POST':
         try:
-            # Captura de datos
             cliente = request.form.get('cliente', 'Cliente')
             telefono = request.form.get('telefono', 'N/A')
             email_cliente = request.form.get('email', 'N/A')
@@ -108,13 +103,10 @@ def calculadora():
             horas = float(request.form.get('horas', 1) or 1)
             coste_materiales = 20.0 if request.form.get('materiales') else 0.0
 
-            # Lógica de Base de Datos
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
-            
             cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (ciudad_para_busca,))
             loc = cursor.fetchone()
-            
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
             serv = cursor.fetchone()
 
@@ -123,7 +115,6 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # Motor de Cálculo Brillo Astur
             mano_de_obra = horas * tarifa
             desplazamiento = ((km * 2) / 10) * 2 
             subtotal = mano_de_obra + desplazamiento + peaje + coste_materiales
@@ -131,39 +122,24 @@ def calculadora():
             total = subtotal + iva
 
             presupuesto_final = {
-                'cliente': cliente,
-                'servicio': nombre_serv,
-                'horas': horas,
-                'direccion': direccion_raw.title(),
-                'mano_de_obra': f"{mano_de_obra:.2f}",
-                'materiales': f"{coste_materiales:.2f}",
-                'desplazamiento': f"{desplazamiento:.2f}",
-                'peaje': f"{peaje:.2f}",
-                'iva': f"{iva:.2f}",
-                'total': f"{total:.2f}"
+                'cliente': cliente, 'servicio': nombre_serv, 'horas': horas,
+                'direccion': direccion_raw.title(), 'mano_de_obra': f"{mano_de_obra:.2f}",
+                'materiales': f"{coste_materiales:.2f}", 'desplazamiento': f"{desplazamiento:.2f}",
+                'peaje': f"{peaje:.2f}", 'iva': f"{iva:.2f}", 'total': f"{total:.2f}"
             }
 
-            # Guardar en Base de Datos
             query = """INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) 
                        VALUES (%s, %s, %s, %s, %s, %s, %s)"""
             cursor.execute(query, (cliente, telefono, email_cliente, ciudad_para_busca.title(), opcion_servicio, horas, total))
             conn.commit()
             conn.close()
 
-            # --- ENVÍO ASÍNCRONO ---
-            # Preparamos el mensaje
-            msg = Message(
-                subject=f"Nuevo Lead Brillo Astur: {cliente}",
-                recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'],
-                body=f"Se ha generado un presupuesto detallado.\n\nCliente: {cliente}\nTeléfono: {telefono}\nTotal: {total:.2f}€\nServicio: {nombre_serv}"
-            )
-            
-            # Lanzamos el hilo para que el cliente no tenga que esperar
+            msg = Message(subject=f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
+            msg.body = f"Presupuesto generado para {cliente} por {total:.2f}€"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
 
         except Exception as e:
-            print(f"Error en el proceso de cálculo: {e}")
-            flash(f"Error en el servidor: {e}", "danger")
+            flash(f"Error: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
@@ -188,13 +164,31 @@ def admin_panel():
     try:
         conn = get_db_connection()
         cursor = conn.cursor(dictionary=True)
+        # Asegúrate de que la tabla 'presupuestos' tenga una columna 'id'
         cursor.execute("SELECT p.*, s.nombre as servicio_nombre FROM presupuestos p LEFT JOIN servicios s ON p.servicio_id = s.id ORDER BY p.fecha_creacion DESC")
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
     except Exception as e:
-        print(f"Error en Panel Admin: {e}")
-        return f"Error en el servidor: {e}", 500
+        return f"Error en Panel Admin: {e}", 500
+
+# NUEVA RUTA: Esta es la que faltaba y causaba el error 500
+@app.route('/actualizar_estatus/<int:id>', methods=['POST'])
+@login_required
+def actualizar_estatus(id):
+    nuevo_estatus = request.form.get('estatus')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        query = "UPDATE presupuestos SET estatus = %s WHERE id = %s"
+        cursor.execute(query, (nuevo_estatus, id))
+        conn.commit()
+        conn.close()
+        flash("Estatus actualizado correctamente", "success")
+    except Exception as e:
+        flash(f"Error al actualizar: {e}", "danger")
+    
+    return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
