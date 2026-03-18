@@ -42,7 +42,6 @@ def get_db_connection():
         ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
 
-# --- 4. DECORADOR DE PROTECCIÓN ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -63,20 +62,18 @@ def servicio_detalle(tipo):
         'pos-obra': {
             'titulo': 'Limpieza Pos-Obra',
             'descripcion': 'Limpieza técnica profunda tras reformas o construcción en Asturias.',
-            'puntos': ['Eliminación de polvo fino de obra', 'Limpieza de cristales, marcos y persianas', 'Desinfección profunda de baños y cocina'],
+            'puntos': ['Eliminación de polvo fino de obra', 'Limpieza de cristales', 'Desinfección profunda'],
             'imagen': 'https://images.unsplash.com/photo-1584622650111-993a426fbf0a?auto=format&fit=crop&q=80&w=1000'
         },
         'hogar': {
             'titulo': 'Mantenimiento Hogar',
-            'descripcion': 'Cuidado constante y detallado para tu casa en Mieres y alrededores.',
-            'puntos': ['Limpieza general de mantenimiento', 'Aspirado y fregado de suelos', 'Limpieza de superficies y orden'],
+            'descripcion': 'Cuidado constante y detallado para tu casa.',
+            'puntos': ['Limpieza general', 'Aspirado y fregado', 'Orden'],
             'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&q=80&w=1000'
         }
     }
     info = servicios_info.get(tipo)
-    if not info:
-        return redirect(url_for('home'))
-    return render_template('servicio.html', info=info)
+    return render_template('servicio.html', info=info) if info else redirect(url_for('home'))
 
 @app.route('/calculadora', methods=['GET', 'POST'])
 def calculadora():
@@ -113,16 +110,25 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
+            # --- MOTOR DE CÁLCULO ---
             mano_obra = horas * tarifa
-            viaje = ((km * 2) / 10) * 2
-            subtotal = mano_obra + viaje + peaje + coste_materiales
-            total = subtotal * 1.21
+            desplazamiento = ((km * 2) / 10) * 2
+            subtotal = mano_obra + desplazamiento + peaje + coste_materiales
+            iva = subtotal * 0.21
+            total = subtotal + iva
 
+            # CORRECCIÓN: Ahora incluimos TODOS los valores para el HTML
             presupuesto_final = {
                 'cliente': cliente,
-                'total': f"{total:.2f}",
                 'servicio': nombre_serv,
-                'direccion': ciudad_para_busca.title()
+                'horas': horas,
+                'direccion': ciudad_para_busca.title(),
+                'mano_de_obra': f"{mano_obra:.2f}",
+                'materiales': f"{coste_materiales:.2f}",
+                'desplazamiento': f"{desplazamiento:.2f}",
+                'peaje': f"{peaje:.2f}",
+                'iva': f"{iva:.2f}",
+                'total': f"{total:.2f}"
             }
 
             cursor.execute("INSERT INTO presupuestos (nombre_cliente, telefono, email, localidad, servicio_id, horas_estimadas, total_presupuestado) VALUES (%s, %s, %s, %s, %s, %s, %s)", 
@@ -133,7 +139,9 @@ def calculadora():
             msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
             msg.body = f"Presupuesto de {total:.2f}€ para {cliente}"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
-        except Exception as e: flash(f"Error: {e}", "danger")
+        except Exception as e: 
+            print(f"Error cálculo: {e}")
+            flash(f"Error: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
@@ -145,14 +153,7 @@ def login():
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
-        else:
-            flash("Credenciales incorrectas", "danger")
     return render_template('login.html')
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('login'))
 
 @app.route('/admin')
 @login_required
@@ -164,8 +165,7 @@ def admin_panel():
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
-    except Exception as e: 
-        return f"Error en el Panel: {e}", 500
+    except: return "Error Admin", 500
 
 @app.route('/eliminar_presupuesto/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -176,25 +176,7 @@ def eliminar_presupuesto(id):
         cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
         conn.commit()
         conn.close()
-        flash("Presupuesto eliminado correctamente", "success")
-    except: 
-        flash("Error al eliminar", "danger")
-    return redirect(url_for('admin_panel'))
-
-# RESTAURADA: Esta ruta suele estar en el HTML y si falta da error al cargar el Admin
-@app.route('/actualizar_estatus/<int:id>', methods=['POST'])
-@login_required
-def actualizar_estatus(id):
-    nuevo_estatus = request.form.get('estatus')
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("UPDATE presupuestos SET estatus = %s WHERE id = %s", (nuevo_estatus, id))
-        conn.commit()
-        conn.close()
-        flash("Estatus actualizado", "success")
-    except:
-        flash("Error al actualizar estatus", "danger")
+    except: pass
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
