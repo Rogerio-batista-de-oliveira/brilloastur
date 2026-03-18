@@ -42,6 +42,7 @@ def get_db_connection():
         ssl_ca=os.environ.get('SSL_CERT_PATH', '/etc/ssl/certs/ca-certificates.crt')
     )
 
+# --- 4. DECORADOR DE PROTECCIÓN ---
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -50,7 +51,7 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# --- 5. RUTAS PÚBLICAS (CON IMÁGENES CORREGIDAS) ---
+# --- 5. RUTAS PÚBLICAS ---
 
 @app.route('/')
 def home():
@@ -58,7 +59,6 @@ def home():
 
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
-    # URLs de imagen actualizadas para mayor compatibilidad
     servicios_info = {
         'pos-obra': {
             'titulo': 'Limpieza Pos-Obra',
@@ -68,7 +68,7 @@ def servicio_detalle(tipo):
         },
         'hogar': {
             'titulo': 'Mantenimiento Hogar',
-            'descripcion': 'Cuidado constante y detallado para que disfrutes de tu casa en Mieres y alrededores.',
+            'descripcion': 'Cuidado constante y detallado para tu casa en Mieres y alrededores.',
             'puntos': ['Limpieza general de mantenimiento', 'Aspirado y fregado de suelos', 'Limpieza de superficies y orden'],
             'imagen': 'https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?auto=format&fit=crop&q=80&w=1000'
         }
@@ -113,7 +113,6 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # Cálculo
             mano_obra = horas * tarifa
             viaje = ((km * 2) / 10) * 2
             subtotal = mano_obra + viaje + peaje + coste_materiales
@@ -131,7 +130,7 @@ def calculadora():
             conn.commit()
             conn.close()
 
-            msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com'])
+            msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
             msg.body = f"Presupuesto de {total:.2f}€ para {cliente}"
             threading.Thread(target=send_async_email, args=(app, msg)).start()
         except Exception as e: flash(f"Error: {e}", "danger")
@@ -146,7 +145,14 @@ def login():
         if request.form['username'] == ADMIN_USER and request.form['password'] == ADMIN_PASS:
             session['logged_in'] = True
             return redirect(url_for('admin_panel'))
+        else:
+            flash("Credenciales incorrectas", "danger")
     return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('login'))
 
 @app.route('/admin')
 @login_required
@@ -158,7 +164,8 @@ def admin_panel():
         datos = cursor.fetchall()
         conn.close()
         return render_template('admin.html', presupuestos=datos)
-    except: return "Error", 500
+    except Exception as e: 
+        return f"Error en el Panel: {e}", 500
 
 @app.route('/eliminar_presupuesto/<int:id>', methods=['GET', 'POST'])
 @login_required
@@ -169,9 +176,27 @@ def eliminar_presupuesto(id):
         cursor.execute("DELETE FROM presupuestos WHERE id = %s", (id,))
         conn.commit()
         conn.close()
-        flash("Eliminado correctamente", "success")
-    except: flash("Error al eliminar", "danger")
+        flash("Presupuesto eliminado correctamente", "success")
+    except: 
+        flash("Error al eliminar", "danger")
+    return redirect(url_for('admin_panel'))
+
+# RESTAURADA: Esta ruta suele estar en el HTML y si falta da error al cargar el Admin
+@app.route('/actualizar_estatus/<int:id>', methods=['POST'])
+@login_required
+def actualizar_estatus(id):
+    nuevo_estatus = request.form.get('estatus')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE presupuestos SET estatus = %s WHERE id = %s", (nuevo_estatus, id))
+        conn.commit()
+        conn.close()
+        flash("Estatus actualizado", "success")
+    except:
+        flash("Error al actualizar estatus", "danger")
     return redirect(url_for('admin_panel'))
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
