@@ -49,7 +49,7 @@ def login_required(f):
 def home():
     return render_template('home.html')
 
-# CORREÇÃO DA ROTA: Agora aceita /servicio/hogar e /servicio/pos-obra
+# CORREÇÃO CRÍTICA: Adicionado <tipo> para que os links funcionem
 @app.route('/servicio/<tipo>')
 def servicio_detalle(tipo):
     servicios_info = {
@@ -92,7 +92,7 @@ def calculadora():
         opcion_servicio = request.form.get('servicio', '1')
         horas = float(request.form.get('horas', 1) or 1)
         
-        # Opção de Materiais
+        # Opção de Materiales (Checkbox)
         incluye_materiales = True if request.form.get('materiales') else False
         coste_materiales = 20.0 if incluye_materiales else 0.0
 
@@ -100,8 +100,11 @@ def calculadora():
             conn = get_db_connection()
             cursor = conn.cursor(dictionary=True)
             
+            # Buscar dados da localidade (KM e Peaje)
             cursor.execute("SELECT distancia_km, tiene_peaje FROM localidades WHERE nombre = %s", (direccion_input,))
             loc = cursor.fetchone()
+            
+            # Buscar dados do serviço (Tarifa)
             cursor.execute("SELECT nombre, tarifa_hora FROM servicios WHERE id = %s", (opcion_servicio,))
             serv = cursor.fetchone()
 
@@ -110,14 +113,14 @@ def calculadora():
             tarifa = float(serv['tarifa_hora']) if serv else 19.0
             nombre_serv = serv['nombre'] if serv else "Limpieza"
 
-            # CÁLCULOS DETALHADOS
+            # MOTOR DE CÁLCULO
             mano_de_obra = horas * tarifa
             desplazamiento = ((km * 2) / 10) * 2 
             subtotal = mano_de_obra + desplazamiento + peaje + coste_materiales
             iva = subtotal * 0.21
             total = subtotal + iva
 
-            # DICIONÁRIO PARA O HTML (Isso faz os valores aparecerem nas linhas)
+            # CORREÇÃO CRÍTICA: Enviando como DICIONÁRIO para o HTML
             presupuesto_final = {
                 'cliente': cliente,
                 'servicio': nombre_serv,
@@ -141,12 +144,12 @@ def calculadora():
             # Enviar Email
             try:
                 msg = Message(f"Nuevo Lead: {cliente}", recipients=['brilloastur@yahoo.com', 'rogerioba28@gmail.com'])
-                msg.body = f"Presupuesto de {cliente}: Total {total:.2f}€"
+                msg.body = f"Presupuesto para {cliente}: {total:.2f}€"
                 mail.send(msg)
             except: pass
 
         except Exception as e:
-            flash(f"Erro: {e}", "danger")
+            flash(f"Error: {e}", "danger")
 
     return render_template('calculadora.html', presupuesto=presupuesto_final, ciudades=ciudades_lista)
 
